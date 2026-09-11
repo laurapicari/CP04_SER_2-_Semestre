@@ -10,11 +10,9 @@
 | **Review/Test** | Tasks implementadas, aguardando revisão/teste. |
 | **Done** | Tasks concluídas e validadas conforme a Definition of Done. |
 
-> Regra de WIP: cada integrante mantém, em geral, apenas **uma task principal** em "Doing" por vez.
-
 ---
 
-## 2. Estado inicial do board (início da Sprint)
+## 2. Estado inicial do board 
 
 A ordem de execução segue as metas definidas pela equipe a partir do
 feedback de uso (ver seção 5 do documento de User Stories e Tasks).
@@ -68,51 +66,8 @@ Cada task vira um cartão com os seguintes campos:
 - **Labels:** classificação do tipo de trabalho (ver tabela abaixo).
 - **Checklist:** pequenos passos internos, quando existirem.
 
-### Labels sugeridas
 
-| Label | Uso |
-|---|---|
-| `frontend` | Interface/menu |
-| `backend` | Regras e cálculo |
-| `data` | Estrutura de dados / persistência |
-| `test` | Testes |
-| `bug` | Correção |
-| `documentation` | Documentação |
-
----
-
-## 4. Fluxo de movimentação dos cartões
-
-- **Product Backlog → To Do:** a US já foi decomposta e a task foi selecionada para a Sprint.
-- **To Do → Doing:** o trabalho foi efetivamente iniciado.
-- **Doing → Review/Test:** a implementação terminou e aguarda revisão ou teste.
-- **Review/Test → Done:** a task foi validada e atende à condição de conclusão.
-
-O board deve refletir o estado real do projeto a cada dia — não deve ser atualizado apenas no momento da entrega.
-
----
-
-## 5. Implementação no Trello
-
-1. Crie um board chamado **Sistema de Dimensionamento Energético**.
-2. Crie as listas, exatamente nesta ordem: `Product Backlog`, `To Do`, `Doing`, `Review/Test`, `Done`.
-3. Adicione um cartão por US na lista **Product Backlog** (PB01 a PB09).
-4. Adicione um cartão para cada task da seção 2 na lista **To Do**.
-5. Preencha cada cartão com descrição, US relacionada, responsável e labels.
-6. Movimente os cartões diariamente conforme o fluxo da seção 4.
-
-## 6. Implementação no GitHub Projects
-
-1. Crie um Project em modo **Board** no repositório da equipe.
-2. Configure o campo **Status** com os valores: `Product Backlog`, `To Do`, `Doing`, `Review/Test`, `Done`.
-3. Crie uma **Issue** para cada task (ex.: `T27 — Implementar validação do consumo`), com a US relacionada na descrição.
-4. Associe cada Issue ao Project e posicione-a na coluna correspondente.
-5. Use **Assignees** para indicar o responsável e **Labels** para classificar o tipo de trabalho.
-6. Referencie a Issue nos commits/Pull Requests relacionados, para manter a rastreabilidade entre planejamento e código.
-
----
-
-## 7. Checklist de uso do Kanban
+## Checklist 
 
 - [ ] Todas as tasks têm títulos objetivos.
 - [ ] Todas as tasks estão associadas à User Story correspondente.
