@@ -1,7 +1,5 @@
 ## 1. Estrutura do board
 
-Colunas, da esquerda para a direita:
-
 **Product Backlog → To Do → Doing (In Progress) → Review/Test → Done**
 
 | Coluna | Finalidade |
