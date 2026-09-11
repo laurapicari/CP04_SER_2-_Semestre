@@ -168,7 +168,7 @@ sistema passa a trabalhar sobre esse histórico.
 
 ---
 
-## 6. Definition of Done (DoD) do projeto
+## 6. Definition of Done do projeto
 
 Uma User Story só é considerada concluída quando:
 
