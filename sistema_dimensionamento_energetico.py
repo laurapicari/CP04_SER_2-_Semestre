@@ -1,24 +1,34 @@
-"""
-Sistema de Dimensionamento Energético Residencial
---------------------------------------------------
-MVP: cadastro de imóveis, cadastro de equipamentos elétricos (catálogo),
-associação de equipamentos a um imóvel (quantidade + tempo médio diário
-de uso) e cálculo do consumo médio mensal estimado, por equipamento e
-total do imóvel, em kWh/mês.
-"""
+import json
+import os
 
-DIAS_NO_MES = 30
+ARQUIVO_DADOS = "dados_dimensionamento.json"
+MESES_NOME = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
 
-# ---------------------------------------------------------------------------
-# "Base de dados" em memória
-# ---------------------------------------------------------------------------
-imoveis = []   # cada item: {"id", "nome", "endereco", "equipamentos": [...]}
-catalogo = []  # cada item: {"id", "nome", "categoria", "potencia_w"}
+imoveis = []  
 
 
-# ---------------------------------------------------------------------------
-# Funções auxiliares de entrada validada
-# ---------------------------------------------------------------------------
+def carregar_dados():
+    global imoveis
+    if os.path.exists(ARQUIVO_DADOS):
+        try:
+            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as arquivo:
+                imoveis = json.load(arquivo)
+        except (json.JSONDecodeError, OSError):
+            print("Não foi possível ler o arquivo de dados. Iniciando com uma base vazia.\n")
+            imoveis = []
+
+
+def salvar_dados():
+    try:
+        with open(ARQUIVO_DADOS, "w", encoding="utf-8") as arquivo:
+            json.dump(imoveis, arquivo, ensure_ascii=False, indent=2)
+    except OSError:
+        print("Não foi possível salvar os dados em disco.\n")
+
+
 def ler_texto_obrigatorio(mensagem):
     while True:
         valor = input(mensagem).strip()
@@ -27,48 +37,53 @@ def ler_texto_obrigatorio(mensagem):
         print("Este campo é obrigatório. Tente novamente.\n")
 
 
-def ler_numero_positivo(mensagem, permitir_decimal=True):
+def ler_consumo_kwh(mensagem):
     while True:
         valor = input(mensagem).strip().replace(",", ".")
         try:
-            numero = float(valor) if permitir_decimal else int(valor)
+            kwh = float(valor)
         except ValueError:
-            print("Valor inválido. Informe um número.\n")
+            print("Valor inválido. Informe um número (ex: 250 ou 250.5).\n")
             continue
-        if numero <= 0:
-            print("O valor deve ser maior que zero.\n")
+        if kwh <= 0:
+            print("O consumo deve ser maior que zero.\n")
             continue
-        return numero
+        return kwh
 
 
-def ler_horas_uso(mensagem):
+def ler_mes():
     while True:
-        valor = input(mensagem).strip().replace(",", ".")
-        try:
-            horas = float(valor)
-        except ValueError:
-            print("Valor inválido. Informe um número.\n")
+        valor = input("Mês (1 a 12): ").strip()
+        if not valor.isdigit() or not (1 <= int(valor) <= 12):
+            print("Informe um mês válido, entre 1 e 12.\n")
             continue
-        if horas <= 0 or horas > 24:
-            print("Informe um valor entre 0 e 24 horas.\n")
-            continue
-        return horas
+        return int(valor)
 
 
-# ---------------------------------------------------------------------------
-# US1 - Cadastro de imóvel
-# ---------------------------------------------------------------------------
+def ler_ano():
+    while True:
+        valor = input("Ano (ex: 2025): ").strip()
+        if not valor.isdigit() or not (2000 <= int(valor) <= 2100):
+            print("Informe um ano válido, entre 2000 e 2100.\n")
+            continue
+        return int(valor)
+
+
+
 def cadastrar_imovel():
     print("\n--- Cadastro de Imóvel ---")
     nome = ler_texto_obrigatorio("Identificação do imóvel (ex: Casa, Apartamento 101): ")
     endereco = ler_texto_obrigatorio("Endereço/localidade: ")
+    usuario = ler_texto_obrigatorio("Nome do usuário responsável pelo imóvel: ")
     imovel = {
         "id": len(imoveis) + 1,
         "nome": nome,
         "endereco": endereco,
-        "equipamentos": [],  # {"equipamento": dict, "quantidade": int, "horas_dia": float}
+        "usuario": usuario,
+        "consumos": [], 
     }
     imoveis.append(imovel)
+    salvar_dados()
     print(f"Imóvel '{nome}' cadastrado com sucesso! (ID {imovel['id']})\n")
 
 
@@ -78,7 +93,8 @@ def listar_imoveis():
         return
     print("\n--- Imóveis Cadastrados ---")
     for im in imoveis:
-        print(f"[{im['id']}] {im['nome']} - {im['endereco']} ({len(im['equipamentos'])} equipamento(s))")
+        print(f"[{im['id']}] {im['nome']} - {im['endereco']} | Responsável: {im['usuario']} "
+              f"| {len(im['consumos'])} mês(es) registrado(s)")
     print()
 
 
@@ -86,133 +102,162 @@ def selecionar_imovel():
     listar_imoveis()
     if not imoveis:
         return None
-    id_escolhido = int(ler_numero_positivo("Informe o ID do imóvel: ", permitir_decimal=False))
-    for im in imoveis:
-        if im["id"] == id_escolhido:
-            return im
-    print("Imóvel não encontrado.\n")
-    return None
+    while True:
+        valor = input("Informe o ID do imóvel: ").strip()
+        if not valor.isdigit():
+            print("Informe um ID numérico válido.\n")
+            continue
+        id_escolhido = int(valor)
+        for im in imoveis:
+            if im["id"] == id_escolhido:
+                return im
+        print("Imóvel não encontrado.\n")
 
 
-# ---------------------------------------------------------------------------
-# US2 - Cadastro de equipamentos elétricos (catálogo)
-# ---------------------------------------------------------------------------
-def cadastrar_equipamento():
-    print("\n--- Cadastro de Equipamento ---")
-    nome = ler_texto_obrigatorio("Nome do equipamento (ex: Geladeira): ")
-    categoria = ler_texto_obrigatorio("Categoria (ex: Cozinha, Iluminação): ")
-    potencia = ler_numero_positivo("Potência nominal em watts (W): ")
-    equipamento = {
-        "id": len(catalogo) + 1,
-        "nome": nome,
-        "categoria": categoria,
-        "potencia_w": potencia,
-    }
-    catalogo.append(equipamento)
-    print(f"Equipamento '{nome}' cadastrado com sucesso! (ID {equipamento['id']})\n")
 
-
-def listar_catalogo():
-    if not catalogo:
-        print("\nNenhum equipamento cadastrado no catálogo ainda.\n")
+def registrar_consumo_mensal():
+    print("\n--- Registrar Consumo Mensal ---")
+    imovel = selecionar_imovel()
+    if imovel is None:
         return
-    print("\n--- Catálogo de Equipamentos ---")
-    for eq in catalogo:
-        print(f"[{eq['id']}] {eq['nome']} | Categoria: {eq['categoria']} | Potência: {eq['potencia_w']:.0f} W")
+
+    mes = ler_mes()
+    ano = ler_ano()
+    kwh = ler_consumo_kwh("Consumo do mês em kWh: ")
+
+    for registro in imovel["consumos"]:
+        if registro["mes"] == mes and registro["ano"] == ano:
+            print(f"Já existe um registro para {MESES_NOME[mes - 1]}/{ano}. "
+                  f"O valor será atualizado de {registro['kwh']:.2f} para {kwh:.2f} kWh.")
+            registro["kwh"] = kwh
+            salvar_dados()
+            print("Registro atualizado com sucesso!\n")
+            return
+
+    imovel["consumos"].append({"mes": mes, "ano": ano, "kwh": kwh})
+    salvar_dados()
+    print(f"Consumo de {MESES_NOME[mes - 1]}/{ano} registrado com sucesso!\n")
+
+
+
+def calcular_media(imovel):
+    consumos = imovel["consumos"]
+    if not consumos:
+        return None
+    total = sum(c["kwh"] for c in consumos)
+    return total / len(consumos)
+
+
+def exibir_media_mensal():
+    print("\n--- Consumo Médio Mensal ---")
+    imovel = selecionar_imovel()
+    if imovel is None:
+        return
+
+    consumos = imovel["consumos"]
+    if not consumos:
+        print(f"O imóvel '{imovel['nome']}' ainda não possui consumo registrado.\n")
+        return
+
+    total = sum(c["kwh"] for c in consumos)
+    media = total / len(consumos)
+
+    print(f"\nImóvel: {imovel['nome']}")
+    print(f"Foram somados os consumos de {len(consumos)} mês(es) registrado(s): "
+          f"{total:.2f} kWh no total.")
+    print(f"Média = {total:.2f} kWh ÷ {len(consumos)} mês(es) = {media:.2f} kWh/mês\n")
+
+
+
+def identificar_maior_consumo():
+    print("\n--- Maior Consumo Registrado ---")
+    imovel = selecionar_imovel()
+    if imovel is None:
+        return
+
+    consumos = imovel["consumos"]
+    if not consumos:
+        print(f"O imóvel '{imovel['nome']}' ainda não possui consumo registrado.\n")
+        return
+
+    maior = max(consumos, key=lambda c: c["kwh"])
+    print(f"\nImóvel: {imovel['nome']}")
+    print(f"Maior consumo registrado: {maior['kwh']:.2f} kWh, "
+          f"em {MESES_NOME[maior['mes'] - 1]}/{maior['ano']}.\n")
+
+
+
+def exibir_resumo():
+    print("\n--- Resumo Energético ---")
+    imovel = selecionar_imovel()
+    if imovel is None:
+        return
+
+    consumos = imovel["consumos"]
+    print(f"\nImóvel: {imovel['nome']} - {imovel['endereco']}")
+    print(f"Responsável: {imovel['usuario']}")
+
+    if not consumos:
+        print("Nenhum consumo registrado até o momento.\n")
+        return
+
+    consumos_ordenados = sorted(consumos, key=lambda c: (c["ano"], c["mes"]))
+    print(f"\nMeses registrados: {len(consumos)}")
+    print("-" * 45)
+    for c in consumos_ordenados:
+        print(f"{MESES_NOME[c['mes'] - 1]:<10}/{c['ano']} : {c['kwh']:>8.2f} kWh")
+    print("-" * 45)
+
+    media = calcular_media(imovel)
+    maior = max(consumos, key=lambda c: c["kwh"])
+    print(f"Consumo médio mensal : {media:.2f} kWh/mês")
+    print(f"Maior consumo        : {maior['kwh']:.2f} kWh "
+          f"({MESES_NOME[maior['mes'] - 1]}/{maior['ano']})\n")
+
+
+
+def exibir_grafico():
+    print("\n--- Gráfico de Consumo Mensal ---")
+    imovel = selecionar_imovel()
+    if imovel is None:
+        return
+
+    consumos = imovel["consumos"]
+    if not consumos:
+        print(f"O imóvel '{imovel['nome']}' ainda não possui consumo registrado.\n")
+        return
+
+    consumos_ordenados = sorted(consumos, key=lambda c: (c["ano"], c["mes"]))
+    maior_valor = max(c["kwh"] for c in consumos_ordenados)
+    escala = 40 / maior_valor  # 40 caracteres representam o maior valor
+
+    print(f"\nImóvel: {imovel['nome']}\n")
+    for c in consumos_ordenados:
+        barras = "█" * max(1, round(c["kwh"] * escala))
+        rotulo = f"{MESES_NOME[c['mes'] - 1][:3]}/{c['ano']}"
+        print(f"{rotulo:<9} | {barras} {c['kwh']:.2f} kWh")
     print()
 
 
-def selecionar_equipamento_catalogo():
-    listar_catalogo()
-    if not catalogo:
-        return None
-    id_escolhido = int(ler_numero_positivo("Informe o ID do equipamento: ", permitir_decimal=False))
-    for eq in catalogo:
-        if eq["id"] == id_escolhido:
-            return eq
-    print("Equipamento não encontrado.\n")
-    return None
 
-
-# ---------------------------------------------------------------------------
-# US3 - Associação de equipamentos ao imóvel
-# ---------------------------------------------------------------------------
-def associar_equipamento_ao_imovel():
-    print("\n--- Associar Equipamento a um Imóvel ---")
-    imovel = selecionar_imovel()
-    if imovel is None:
-        return
-
-    equipamento = selecionar_equipamento_catalogo()
-    if equipamento is None:
-        return
-
-    quantidade = int(ler_numero_positivo("Quantidade deste equipamento no imóvel: ", permitir_decimal=False))
-    horas_dia = ler_horas_uso("Tempo médio diário de uso (em horas, 0-24): ")
-
-    imovel["equipamentos"].append({
-        "equipamento": equipamento,
-        "quantidade": quantidade,
-        "horas_dia": horas_dia,
-    })
-    print(f"Equipamento '{equipamento['nome']}' associado ao imóvel '{imovel['nome']}' com sucesso!\n")
-
-
-# ---------------------------------------------------------------------------
-# US4 e US5 - Cálculo do consumo mensal (por equipamento e total do imóvel)
-# ---------------------------------------------------------------------------
-def calcular_consumo_mensal_equipamento(item):
-    """Consumo mensal estimado (kWh) de um equipamento associado a um imóvel."""
-    potencia_w = item["equipamento"]["potencia_w"]
-    quantidade = item["quantidade"]
-    horas_dia = item["horas_dia"]
-    consumo_wh_mes = potencia_w * quantidade * horas_dia * DIAS_NO_MES
-    return consumo_wh_mes / 1000  # Wh -> kWh
-
-
-def exibir_consumo_do_imovel():
-    print("\n--- Consumo Médio Mensal Estimado ---")
-    imovel = selecionar_imovel()
-    if imovel is None:
-        return
-
-    if not imovel["equipamentos"]:
-        print(f"O imóvel '{imovel['nome']}' ainda não possui equipamentos associados.\n")
-        return
-
-    print(f"\nImóvel: {imovel['nome']} - {imovel['endereco']}")
-    print("-" * 64)
-    consumo_total = 0.0
-    for item in imovel["equipamentos"]:
-        consumo = calcular_consumo_mensal_equipamento(item)
-        consumo_total += consumo
-        nome_eq = item["equipamento"]["nome"]
-        print(f"{nome_eq:<20} | Qtd: {item['quantidade']:>3} | "
-              f"Uso diário: {item['horas_dia']:>4.1f}h | "
-              f"Consumo: {consumo:>8.2f} kWh/mês")
-    print("-" * 64)
-    print(f"CONSUMO TOTAL ESTIMADO DO IMÓVEL: {consumo_total:.2f} kWh/mês\n")
-
-
-# ---------------------------------------------------------------------------
-# Menu principal
-# ---------------------------------------------------------------------------
 def exibir_menu():
     print("""
 ==================================================================
    Sistema de Dimensionamento Energético Residencial
 ==================================================================
 [1] Cadastrar imóvel
-[2] Cadastrar equipamento no catálogo
-[3] Listar equipamentos do catálogo
-[4] Listar imóveis cadastrados
-[5] Associar equipamento a um imóvel
-[6] Calcular consumo médio mensal de um imóvel
+[2] Listar imóveis cadastrados
+[3] Registrar consumo mensal (kWh)
+[4] Calcular consumo médio mensal
+[5] Identificar maior consumo e o mês/ano
+[6] Exibir resumo energético completo
+[7] Exibir gráfico de consumo mensal
 [0] Sair
 """)
 
 
 def main():
+    carregar_dados()
     while True:
         exibir_menu()
         opcao = input("Escolha uma opção: ").strip()
@@ -220,17 +265,20 @@ def main():
         if opcao == "1":
             cadastrar_imovel()
         elif opcao == "2":
-            cadastrar_equipamento()
-        elif opcao == "3":
-            listar_catalogo()
-        elif opcao == "4":
             listar_imoveis()
+        elif opcao == "3":
+            registrar_consumo_mensal()
+        elif opcao == "4":
+            exibir_media_mensal()
         elif opcao == "5":
-            associar_equipamento_ao_imovel()
+            identificar_maior_consumo()
         elif opcao == "6":
-            exibir_consumo_do_imovel()
+            exibir_resumo()
+        elif opcao == "7":
+            exibir_grafico()
         elif opcao == "0":
-            print("Encerrando o sistema. Até logo!")
+            salvar_dados()
+            print("Dados salvos. Encerrando o sistema. Até logo!")
             break
         else:
             print("Opção inválida. Tente novamente.\n")
